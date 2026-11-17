@@ -1,123 +1,191 @@
-import React, { useState, useEffect } from 'react';
-import { BsStopwatch } from 'react-icons/bs';
-import './App.css';
+import React, { useEffect, useRef, useState } from "react";
+import "./App.css";
+
+const formatDuration = (milliseconds) => {
+  const total = Math.max(0, Math.floor(milliseconds));
+  const hours = Math.floor(total / 3600000);
+  const minutes = Math.floor((total % 3600000) / 60000);
+  const seconds = Math.floor((total % 60000) / 1000);
+  const millis = total % 1000;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
+};
+
+const createStopwatch = (id, name) => ({
+  id,
+  name,
+  elapsedMs: 0,
+  isRunning: false,
+  startedAt: null,
+  laps: [],
+});
 
 function App() {
-  const [stopwatchData, setStopwatchData] = useState([
-    { id: 0, name: "Timer 1", time: 0, isRunning: false, lap: [], time_started: 0, pause: [] },
-   ])
-   const [selectedRow, setSelectedRow] = useState(0)
-   useEffect(() => {
-    const interval = setInterval(() => {
-     setStopwatchData(stopwatchData.map((stopwatch) => {
-      if (stopwatch.isRunning) {
-       return { ...stopwatch, time: new Date() - stopwatch.time_started - stopwatch.pause.reduce((a, b) => a + b, 0) }
-      }
-      return stopwatch
-     }))
-    }, 10)
-    return () => clearInterval(interval)
-   }, [stopwatchData])
+  const nextId = useRef(2);
+  const [stopwatches, setStopwatches] = useState([
+    createStopwatch(1, "Stopwatch 1"),
+  ]);
+  const [selectedId, setSelectedId] = useState(1);
 
-   const handleStart = (id) => {
-    setStopwatchData(stopwatchData.map((stopwatch) => {
-     if (stopwatch.id === id) {
-      return { ...stopwatch, isRunning: true, time_started: new Date() - stopwatch.time - stopwatch.pause.reduce((a, b) => a + b, 0) }
-     }
-     return stopwatch
-    }))
-   }
-   
-   const handleStop = (id) => {
-    setStopwatchData(stopwatchData.map((stopwatch) => {
-     if (stopwatch.id === id) {
-      return { ...stopwatch, isRunning: false, pause: [...stopwatch.pause, new Date() - stopwatch.time_started - stopwatch.pause.reduce((a, b) => a + b, 0)] }
-     }
-     return stopwatch
-    }))
-   }
-   
-   const handleReset = (id) => {
-    setStopwatchData(stopwatchData.map((stopwatch) => {
-     if (stopwatch.id === id) {
-      return { ...stopwatch, time: 0, isRunning: false, lap: [] }
-     }
-     return stopwatch
-    }))
-   }
-   
-   const handleLap = (id) => {
-    setStopwatchData(stopwatchData.map((stopwatch) => {
-     if (stopwatch.id === id) {
-      return { ...stopwatch, lap: [...stopwatch.lap, stopwatch.time] }
-     }
-     return stopwatch
-    }))
-   }
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setStopwatches((current) => {
+        if (!current.some((stopwatch) => stopwatch.isRunning)) return current;
+
+        const now = Date.now();
+        return current.map((stopwatch) =>
+          stopwatch.isRunning
+            ? { ...stopwatch, elapsedMs: now - stopwatch.startedAt }
+            : stopwatch
+        );
+      });
+    }, 50);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const selectedStopwatch =
+    stopwatches.find((stopwatch) => stopwatch.id === selectedId) || stopwatches[0];
+
+  const addStopwatch = () => {
+    const id = nextId.current;
+    nextId.current += 1;
+    setStopwatches((current) => [
+      ...current,
+      createStopwatch(id, `Stopwatch ${current.length + 1}`),
+    ]);
+    setSelectedId(id);
+  };
+
+  const updateStopwatch = (id, updates) => {
+    setStopwatches((current) =>
+      current.map((stopwatch) =>
+        stopwatch.id === id ? { ...stopwatch, ...updates } : stopwatch
+      )
+    );
+  };
+
+  const handleStart = () => {
+    if (!selectedStopwatch || selectedStopwatch.isRunning) return;
+    updateStopwatch(selectedStopwatch.id, {
+      isRunning: true,
+      startedAt: Date.now() - selectedStopwatch.elapsedMs,
+    });
+  };
+
+  const handleStop = () => {
+    if (!selectedStopwatch?.isRunning) return;
+    updateStopwatch(selectedStopwatch.id, {
+      isRunning: false,
+      elapsedMs: Date.now() - selectedStopwatch.startedAt,
+      startedAt: null,
+    });
+  };
+
+  const handleReset = () => {
+    if (!selectedStopwatch) return;
+    updateStopwatch(selectedStopwatch.id, {
+      elapsedMs: 0,
+      isRunning: false,
+      startedAt: null,
+      laps: [],
+    });
+  };
+
+  const handleLap = () => {
+    if (!selectedStopwatch) return;
+    const elapsed = selectedStopwatch.isRunning
+      ? Date.now() - selectedStopwatch.startedAt
+      : selectedStopwatch.elapsedMs;
+
+    updateStopwatch(selectedStopwatch.id, {
+      laps: [...selectedStopwatch.laps, elapsed],
+    });
+  };
+
   return (
-    <div className="App">
-      <div className='container'>
-        <div className='left'>
-        <div style={{ display: "flex", alignItems: "center", flexDirection: "row", justifyContent: "space-between", width: "100%" }}>
-      <div style={{ textAlign: "left" }}>
-       <h1 style={{ fontWeight: "bold", fontSize: 30 }}>Stopwatch</h1>
-       <p style={{ fontWeight: "normal", fontSize: 20 }}>Built by Tarun Tiwari</p>
-      </div>
-      <div style={{ cursor: "pointer", alignItems: "center", display: "flex", flexDirection: "row", gap: 10 }} onClick={() => setStopwatchData([...stopwatchData, { id: stopwatchData.length, name: `Timer ${stopwatchData.length + 1}`, time: 0, isRunning: false, lap: [], pause: [] }])}>
-       <BsStopwatch size={20} color={"white"} />
-       <p>Add Stopwatch</p>
-      </div>
-     </div>
- 
-     <p className='main-time-label'>{stopwatchData[selectedRow]?.time > 0 ? new Date(stopwatchData[selectedRow]?.time).toISOString().slice(11, -1) : "00:00:00.000"}</p>
-     <div className="main-button-controls">
-      <button className={"control-buttons"} onClick={() => handleStart(stopwatchData[selectedRow].id)}>Start</button>
-      <button className={"control-buttons"} onClick={() => handleLap(stopwatchData[selectedRow].id)}>Lap</button>
-      <button className={"control-buttons"} onClick={() => handleStop(stopwatchData[selectedRow].id)}>Stop</button>
-      <button className={"control-buttons"} onClick={() => handleReset(stopwatchData[selectedRow].id)}>Reset</button>
-     </div>
-     <p className='lap-label'>Laps</p>
-     <div className='lap-container'>
-      {stopwatchData[selectedRow]?.lap.length > 0 && stopwatchData[selectedRow]?.lap.map((lap, index) => (
-       <div style={{ display: "flex", justifyContent: "space-between", width: "500px" }}>
-        <p>Lap {index + 1}</p>
-        <p className='lap-time-label' key={index}>{new Date(lap).toISOString().slice(11, -1)}</p>
-       </div>
-      ))}
-     </div>
+    <main className="stopwatch-app">
+      <section className="stopwatch-main">
+        <header className="stopwatch-header">
+          <div>
+            <h1>Stopwatch</h1>
+            <p>Multiple timers, one clear view.</p>
+          </div>
+          <button type="button" className="add-stopwatch" onClick={addStopwatch}>
+            + Add stopwatch
+          </button>
+        </header>
 
-        </div>
-        <div className='right'>
-        {stopwatchData.map((stopwatch) => (
-      <div className="stopwatchContainer" key={stopwatch.id} style={{ cursor: "pointer" }} onClick={() => {
-       setSelectedRow(stopwatch.id)
-      }}>
-       <div className="stopwatchName">
-        <input className='name-label' value={stopwatch.name} onChange={(e) => {
-         setStopwatchData(stopwatchData.map((stopwatchItem) => {
-          if (stopwatchItem.id === stopwatch.id) {
-           return { ...stopwatchItem, name: e.target.value }
-          }
-          return stopwatchItem
-         }))
-        }} />
-       </div>
-       <div className="stopwatchTime">
-        <p className='time-label'>{new Date(stopwatch.time).toISOString().slice(11, -1)}</p>
-        <p>{stopwatch.lap.length} laps</p>
-       </div>
-       <div className="stopwatchButtons">
-        <button className={"control-buttons"} onClick={() => handleStart(stopwatch.id)}>Start</button>
-        <button className={"control-buttons"} onClick={() => handleLap(stopwatch.id)}>Lap</button>
-        <button className={"control-buttons"} onClick={() => handleStop(stopwatch.id)}>Stop</button>
-        <button className={"control-buttons"} onClick={() => handleReset(stopwatch.id)}>Reset</button>
-       </div>
-      </div>
-     ))}
+        {selectedStopwatch && (
+          <section className="active-stopwatch" aria-label="Selected stopwatch">
+            <h2>{selectedStopwatch.name}</h2>
+            <output className="main-time" aria-label="Elapsed time" aria-live="off">
+              {formatDuration(selectedStopwatch.elapsedMs)}
+            </output>
+            <div className="main-controls">
+              <button type="button" onClick={handleStart} disabled={selectedStopwatch.isRunning}>
+                Start
+              </button>
+              <button type="button" onClick={handleLap} disabled={selectedStopwatch.elapsedMs === 0}>
+                Lap
+              </button>
+              <button type="button" onClick={handleStop} disabled={!selectedStopwatch.isRunning}>
+                Stop
+              </button>
+              <button type="button" onClick={handleReset} disabled={selectedStopwatch.elapsedMs === 0 && selectedStopwatch.laps.length === 0}>
+                Reset
+              </button>
+            </div>
 
-        </div>
-      </div>
-    </div>
+            <div className="lap-section">
+              <div className="lap-heading">
+                <h3>Laps</h3>
+                <span>{selectedStopwatch.laps.length}</span>
+              </div>
+              {selectedStopwatch.laps.length === 0 ? (
+                <p className="empty-laps">Your lap times will appear here.</p>
+              ) : (
+                <ol className="lap-list">
+                  {selectedStopwatch.laps.map((lap, index) => (
+                    <li key={`${selectedStopwatch.id}-lap-${index}`}>
+                      <span>Lap {index + 1}</span>
+                      <strong>{formatDuration(lap)}</strong>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </section>
+        )}
+      </section>
+
+      <aside className="stopwatch-sidebar" aria-label="Your stopwatches">
+        <h2>My stopwatches</h2>
+        {stopwatches.map((stopwatch) => (
+          <article
+            className={`stopwatch-card ${stopwatch.id === selectedId ? "selected" : ""}`}
+            key={stopwatch.id}
+          >
+            <input
+              aria-label="Stopwatch name"
+              value={stopwatch.name}
+              onChange={(event) => updateStopwatch(stopwatch.id, { name: event.target.value })}
+            />
+            <p className="sidebar-time">{formatDuration(stopwatch.elapsedMs)}</p>
+            <div className="sidebar-card-footer">
+              <span>{stopwatch.laps.length} laps</span>
+              <button
+                type="button"
+                onClick={() => setSelectedId(stopwatch.id)}
+                aria-pressed={stopwatch.id === selectedId}
+              >
+                {stopwatch.id === selectedId ? "Selected" : "Select"}
+              </button>
+            </div>
+          </article>
+        ))}
+      </aside>
+    </main>
   );
 }
 
